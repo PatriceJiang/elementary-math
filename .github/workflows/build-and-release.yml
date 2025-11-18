@@ -1,0 +1,94 @@
+name: 构建并发布 PDF
+
+on:
+  # 当推送标签时触发
+  push:
+    tags:
+      - 'v*'
+  # 支持手动触发
+  workflow_dispatch:
+
+# 配置权限
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  build-and-release:
+    name: 构建并发布微积分笔记
+    runs-on: ubuntu-latest
+    
+    steps:
+      # 1. 检出代码仓库
+      - name: 检出代码
+        uses: actions/checkout@v4
+      
+      # 2. 安装 LaTeX 环境和 Asymptote
+      - name: 安装 LaTeX 环境
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            texlive-xetex \
+            texlive-latex-base \
+            texlive-latex-recommended \
+            texlive-latex-extra \
+            texlive-fonts-recommended \
+            texlive-fonts-extra \
+            texlive-lang-chinese \
+            asymptote
+      
+      # 3. 赋予构建脚本执行权限
+      - name: 设置脚本执行权限
+        run: chmod +x clear.sh build-pic.sh
+      
+      # 4. 构建图片文件
+      - name: 构建图片
+        run: |
+          echo "开始构建 Asymptote 图片..."
+          ./build-pic.sh
+          echo "图片构建完成"
+      
+      # 5. 执行 LaTeX 构建脚本
+      - name: 执行 LaTeX 构建
+        run: make
+      
+      # 6. 验证 PDF 文件是否生成
+      - name: 验证构建产物
+        run: |
+          if [ ! -f "elementary-math-note.pdf" ]; then
+            echo "错误: PDF 文件未生成"
+            exit 1
+          fi
+          echo "PDF 文件已成功生成"
+          ls -lh elementary-math-note.pdf
+      
+      # 7. 提取版本信息
+      - name: 获取版本信息
+        id: get_version
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            VERSION="${GITHUB_REF#refs/tags/}"
+          else
+            VERSION="dev-$(git rev-parse --short HEAD)"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "发布版本: $VERSION"
+      
+      # 8. 创建 Release 并上传 PDF
+      - name: 创建 GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.get_version.outputs.version }}
+          name: 微积分笔记 ${{ steps.get_version.outputs.version }}
+          body: |
+            ## 📚 初等数学学习笔记
+            
+            ---
+            构建时间: ${{ github.event.head_commit.timestamp }}
+            提交 SHA: ${{ github.sha }}
+          files: |
+            elementary-math-note.pdf
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
