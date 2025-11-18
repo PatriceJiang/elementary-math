@@ -39,7 +39,7 @@ jobs:
       
       # 3. 赋予构建脚本执行权限
       - name: 设置脚本执行权限
-        run: chmod +x clear.sh build-pic.sh
+        run: chmod +x build-pic.sh
       
       # 4. 构建图片文件
       - name: 构建图片
